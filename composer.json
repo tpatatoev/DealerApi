@@ -1,0 +1,18 @@
+{
+    "name": "mti/dealer_content_api_v2",
+    "description": "Package allows to interact with products.mti.ua through rest api. Api enables to get content for distributed products",
+    "type": "project",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "Alexander Drozdovskyi"
+        }
+    ],
+    "minimum-stability": "beta",
+    "autoload": {
+        "psr-4": {
+            "MTI\\DealerApi\\V2\\": "src"
+        }
+    },
+    "require": {}
+}
