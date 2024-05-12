@@ -11,7 +11,7 @@ use MTI\DealerApi\ProductsList;
 /**
  * Request Singleton
  */
-class Request extends Singleton
+class RequestController extends Singleton
 {
   protected $dateSince;
   protected ProductsList $arProducts;
@@ -37,6 +37,11 @@ class Request extends Singleton
     $arProducts = $_REQUEST['arProducts'] ? explode(" ", $_REQUEST['arProducts']) : [];
     $arProducts = $this->isRequestedPriceProducts() ? ApiRouter::GetLatestProducts() : $arProducts;
     return ProductsList::fromArray($arProducts);
+  }
+
+  public function resetProductList(array $arProducts)
+  {
+    $this->arProducts = ProductsList::fromArray($arProducts);
   }
 
   /**

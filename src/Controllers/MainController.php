@@ -5,8 +5,7 @@ namespace MTI\DealerApi\V2\Controllers;
 use DOMDocument;
 use MTI\DealerApi\BxCatalog;
 use MTI\DealerApi\BxPropertyTable;
-use MTI\DealerApi\ProductsList;
-use MTI\DealerApi\Request;
+
 use MTI\DealerApi\V2\Views\XmlWriterV2;
 
 class MainController
@@ -19,15 +18,15 @@ class MainController
   public const TRANSPORT_STREAM = "STREAM";
   public const DISK_FILE_LOCATION = "/upload/xml_update/export/api_goods.xml";
 
-  protected ProductsList $productList;
+  // protected ProductsList $productList;
   protected XmlWriterV2 $writer;
   protected array $sortedProductsList;
-  protected Request $request;
+  protected RequestController $request;
 
-  public function __construct(Request $request)
+  public function __construct(RequestController $request, XmlWriterV2 $writer)
   {
     $this->request = $request;
-    $this->writer = new XmlWriterV2();
+    $this->writer = $writer;
   }
 
   public function getTransport(): string
@@ -59,11 +58,12 @@ class MainController
   }
 
 
-  function loadArray(array $arProductIds = []): DOMDocument
+  function loadArray(): DOMDocument
   {
-    $this->productList = ProductsList::fromArray($arProductIds);
+    // $this->productList = ProductsList::fromArray($arProductIds);
 
-    $transformedList = $this->productList->getTransformedList();
+    $transformedList =  $this->request->getProducts()->getTransformedList();
+
     $arProductXmlIds = array_keys($transformedList);
 
     $arSectionProperties = BxCatalog::getSectionsArray($arProductXmlIds);
@@ -80,23 +80,25 @@ class MainController
 
     $arProducts = BxCatalog::getElements($arProductXmlIds, $arSectionProperties,  $arCategories);
 
+    $this->writer->bindProductList($this->request->getProducts());
     return $this->writer->createFile($arProducts, $transformedList, $arProperties, $arCategories);
   }
 
 
   private function loadSection()
   {
-    $arProductIds = BxCatalog::formatItemsBySection([], $_REQUEST['cat_id']);
-    return count($arProductIds) ?
-      $this->loadArray($arProductIds) :  $this->loadEmpty();
+    $arProductXmlIds = BxCatalog::formatItemsBySection([], $_REQUEST['cat_id']);
+    $this->request->resetProductList($arProductXmlIds);
+    return count($arProductXmlIds) ?
+      $this->loadArray() :  $this->loadEmpty();
   }
 
 
   private function loadByDate()
   {
-
-    $arProductIds = BxCatalog::formatItemsBySection([], 0);
-    return $this->loadArray($arProductIds);
+    $arProductXmlIds = BxCatalog::formatItemsBySection([], 0);
+    $this->request->resetProductList($arProductXmlIds);
+    return $this->loadArray();
   }
 
 
@@ -115,18 +117,19 @@ class MainController
   {
 
     // here goes logic defining what kind of request we have got
-    $request = Request::getInstance();
-    $obContent = new static($request);
+    $request = RequestController::getInstance();
+    $writer = new XmlWriterV2();
+    $obContent = new static($request, $writer);
 
 
-    if ($request->isInvalid()) {
-      $obXml = $obContent->loadEmpty();
-    } elseif ($_REQUEST['dateSince'] || $_REQUEST['latest'] === "Y") {
-      $obXml = $obContent->loadByDate();
-    } else {
+    // if ($request->isInvalid()) {
+    //   $obXml = $obContent->loadEmpty();
+    // } elseif ($_REQUEST['dateSince'] || $_REQUEST['latest'] === "Y") {
+    //   $obXml = $obContent->loadByDate();
+    // } else {
 
-      $arProducts = $obContent->request->getProducts();
-      $obXml = $_REQUEST['cat_id'] ? $obContent->loadSection() : $obContent->loadArray($arProducts);
-    }
+    //   $arProducts = $obContent->request->getProducts();
+    //   $obXml = $_REQUEST['cat_id'] ? $obContent->loadSection() : $obContent->loadArray();
+    // }
   }
 }

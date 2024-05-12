@@ -14,6 +14,8 @@ class XmlWriterV2
 {
 
   public static $totalQuantity;
+
+  protected array $productList;
   /**
    * arPropsParams
    *
@@ -57,6 +59,11 @@ class XmlWriterV2
       $domElement->appendChild($attribute);
     }
     return $domElement;
+  }
+
+  public function bindProductList(ProductsList $list)
+  {
+    $this->productList = $list->getList();
   }
 
 
@@ -125,14 +132,14 @@ class XmlWriterV2
    * @param  array $productList
    * @return int
    */
-  private function createProductsList(DOMDocument $xml, Generator $arProducts, DOMElement $products, array $productList): int
+  private function createProductsList(DOMDocument $xml, Generator $arProducts, DOMElement $products): int
   {
     $i = 0;
-    if (count($productList) === 0) return $i;
+    if (count($this->productList) === 0) return $i;
     $arProductFields = array('NAME', 'CREATED_DATE', 'TIMESTAMP_X', 'PREVIEW_TEXT', "DETAIL_PICTURE", 'MORE_PHOTO', 'DETAIL_TEXT', "WEIGHT", "WIDTH", "LENGTH", "HEIGHT");
     foreach ($arProducts as $element) {
       if (empty($element)) continue;
-      foreach ($productList[$element["XML_ID"]] as $productXmdId) {
+      foreach ($this->productList[$element["XML_ID"]] as $productXmdId) {
         $Element = $xml->createElement('product');
         foreach ($element as $key => $val) {
           if ($key == 'XML_ID') {
@@ -236,7 +243,7 @@ class XmlWriterV2
    * @param  array $arCategories
    * @return DOMDocument
    */
-  public function createFile(Generator $arProducts, array $productList, array $arParamsList, array $arCategories): DOMDocument
+  public function createFile(Generator $arProducts, array $arParamsList, array $arCategories): DOMDocument
   {
     $xml = new DOMDocument("1.0", "UTF-8");
     $xml->formatOutput = true;
@@ -252,7 +259,7 @@ class XmlWriterV2
 
     $products = $xml->createElement('productslist');
 
-    self::$totalQuantity = $this->createProductsList($xml, $arProducts, $products, $productList);
+    self::$totalQuantity = $this->createProductsList($xml, $arProducts, $products);
 
     $totalCount = $xml->createElement('products_count', self::$totalQuantity);
     $root->appendChild($totalCount);
@@ -261,19 +268,6 @@ class XmlWriterV2
     $root->appendChild($properties);
     $root->appendChild($products);
     $xml->appendChild($root);
-
-
     return $xml;
-
-    // $fileName = $_SERVER['DOCUMENT_ROOT'] . '/upload/xml_update/export/test.xml';
-    // $fileSize = $xml->save($fileName);
-
-    // $response = array(
-    //   'responseText' => $totalCount,
-    //   'size' => 'Записано: ' . $fileSize / 1024 / 1024 . ' МБайт',
-    //   'memory' => 'Использовано памяти: ' . memory_get_usage(true) / 1024 / 1024,
-    //   'downloadPath' => 'https://' . $_SERVER['SERVER_NAME'] . '/upload/xml_update/export/test.xml'
-    // );
-    // print_r($response);
   }
 }
