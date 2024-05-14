@@ -7,10 +7,9 @@ use CFile;
 use CIBlockSectionPropertyLink;
 use Generator;
 
-class ProductRepository extends ElementDistriTable
+class ProductRepositoryTable extends ElementDistriTable
 {
 
-  public const IBLOCK_ID = 31;
   const XML_ID_FIELD = "XML_ID";
   const ID_FIELD = "ID";
   const NAME_FIELD = "NAME";
@@ -38,36 +37,6 @@ class ProductRepository extends ElementDistriTable
   }
 
 
-  public static function getSectionsArray(array $arProductXmlIds): array
-  {
-
-
-    $obParams = new RepositoryParameters;
-    $obParams->addSelect(['SECTION_ID']);
-    $obParams->addFilter($arProductXmlIds);
-    $obParams->addRuntime(...[new ExpressionField('SECTION_ID', 'DISTINCT %s', ['IBLOCK_SECTION_ID'])]);
-
-
-    $iterator = static::getList($obParams->toArray());
-    $arResult = [];
-
-    $i = 0;
-    while ($arItem = $iterator->fetch()) {
-      if ($arResult[$arItem['SECTION_ID']]) continue;
-      $arProperties = CIBlockSectionPropertyLink::GetArray(
-        self::IBLOCK_ID,
-        $arItem['SECTION_ID'],
-        false
-      );
-      $arResult[$arItem['SECTION_ID']] = static::normalizePropertiesArray($arProperties);
-      $i++;
-    }
-    return $arResult;
-  }
-
-
-
-
 
   /**
    * getElements
@@ -82,7 +51,7 @@ class ProductRepository extends ElementDistriTable
 
     $filter = [
       'ACTIVE' => 'Y',
-      'IBLOCK_ID' => static::IBLOCK_ID,
+      'IBLOCK_ID' => MainRepository::IBLOCK_ID,
       "XML_ID" => $arProductXmlIds
     ];
 

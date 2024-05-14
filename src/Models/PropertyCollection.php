@@ -3,12 +3,12 @@
 namespace MTI\DealerApi\V2\Models;
 
 use MTI\DealerApi\V2\Abstractions\BasePropertyCollection;
+use MTI\DealerApi\V2\Interfaces\IBaseProperty;
 
 class PropertyCollection extends BasePropertyCollection
 {
-  private $list = [];
 
-  public function __construct(Property ...$property)
+  public function __construct(IBaseProperty ...$property)
   {
     $this->list = $property;
   }

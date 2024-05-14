@@ -5,7 +5,7 @@ namespace MTI\DealerApi\V2\Controllers;
 use DOMDocument;
 use MTI\DealerApi\BxCatalog;
 use MTI\DealerApi\BxPropertyTable;
-
+use MTI\DealerApi\V2\Repositories\MainRepository;
 use MTI\DealerApi\V2\Views\XmlWriterV2;
 
 class MainController
@@ -22,11 +22,13 @@ class MainController
   protected XmlWriterV2 $writer;
   protected array $sortedProductsList;
   protected RequestController $request;
+  protected MainRepository $repository;
 
-  public function __construct(RequestController $request, XmlWriterV2 $writer)
+  public function __construct(RequestController $request, XmlWriterV2 $writer, MainRepository $repository)
   {
     $this->request = $request;
     $this->writer = $writer;
+    $this->repository = $repository;
   }
 
   public function getTransport(): string
@@ -66,22 +68,26 @@ class MainController
 
     $arProductXmlIds = array_keys($transformedList);
 
-    $arSectionProperties = BxCatalog::getSectionsArray($arProductXmlIds);
+    $arSectionProperties = $this->repository->getSectionsArray($arProductXmlIds);
+    dump($arSectionProperties);
+    // dump($arSectionProperties);
 
-    if (empty($arSectionProperties)) {
-      return $this->loadEmpty();
-    }
+    // if (empty($arSectionProperties['SECTIONS'])) {
+    //   return $this->loadEmpty();
+    // }
 
-    $arProperties = BxPropertyTable::getProperiesArray($arSectionProperties);
+    // $arProperties = BxPropertyTable::getProperiesArray($arSectionProperties);
 
-    $arCategories = BxCatalog::getCatalogTreeList(array_keys($arSectionProperties));
+    $arCategories = BxCatalog::getCatalogTreeList($arSectionProperties['SECTIONS']);
 
-    // echo json_encode(array_keys($arSectionProperties), JSON_PRETTY_PRINT);
+
 
     $arProducts = BxCatalog::getElements($arProductXmlIds, $arSectionProperties,  $arCategories);
 
-    $this->writer->bindProductList($this->request->getProducts());
-    return $this->writer->createFile($arProducts, $transformedList, $arProperties, $arCategories);
+    // $this->writer->bindProductList($this->request->getProducts());
+
+    // return $this->writer->createFile($arProducts, $arProperties, $arCategories);
+    return new DOMDocument();
   }
 
 
@@ -119,8 +125,10 @@ class MainController
     // here goes logic defining what kind of request we have got
     $request = RequestController::getInstance();
     $writer = new XmlWriterV2();
-    $obContent = new static($request, $writer);
-
+    $repository = MainRepository::getInstance();
+    $obContent = new static($request, $writer, $repository);
+    /**test */
+    $obContent->loadArray();
 
     // if ($request->isInvalid()) {
     //   $obXml = $obContent->loadEmpty();

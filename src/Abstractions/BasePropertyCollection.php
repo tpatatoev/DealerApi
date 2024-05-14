@@ -2,18 +2,18 @@
 
 namespace MTI\DealerApi\V2\Abstractions;
 
-use MTI\DealerApi\V2\Interfaces\IBaseProperties;
-
+use MTI\DealerApi\V2\Interfaces\IBaseCollection;
+use MTI\DealerApi\V2\Interfaces\IBaseEntity;
 
 
 /**
  * BasePropertyCollection
  */
-abstract class BasePropertyCollection implements IBaseProperties
+abstract class BasePropertyCollection implements IBaseCollection
 {
-  private $list = [];
+  protected array $list = [];
 
-  public function __construct(BaseProperty ...$property)
+  public function __construct(IBaseEntity ...$property)
   {
     $this->list = $property;
   }

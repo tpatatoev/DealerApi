@@ -7,7 +7,7 @@ use Bitrix\Iblock\PropertyTable;
 /**
  * PropertiesRepository
  */
-class PropertiesRepository extends PropertyTable
+class PropertiesRepositoryTable extends PropertyTable
 {
 
   public static function flattenArray(array $array)
@@ -43,12 +43,12 @@ class PropertiesRepository extends PropertyTable
     $filter = [
       "LOGIC" => "OR",
       [
-        'IBLOCK_ID' => ProductRepository::IBLOCK_ID,
+        'IBLOCK_ID' => MainRepository::IBLOCK_ID,
         'ACTIVE' => 'Y',
         'CODE' => $defaultPropertiesCodes
       ],
       [
-        'IBLOCK_ID' => ProductRepository::IBLOCK_ID,
+        'IBLOCK_ID' => MainRepository::IBLOCK_ID,
         'ACTIVE' => 'Y',
         'ID' =>  static::flattenArray($arSectionProperties)
       ]

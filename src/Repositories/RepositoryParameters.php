@@ -4,6 +4,7 @@ namespace MTI\DealerApi\V2\Repositories;
 
 use Bitrix\Main\ORM\Fields\ExpressionField;
 use Bitrix\Main\ORM\Fields\Relations\Reference;
+use Bitrix\Main\ORM\Query\Join;
 
 class RepositoryParameters
 {
@@ -29,10 +30,23 @@ class RepositoryParameters
     if (count($this->cache)) {
       $result['cache'] = $this->cache;
     }
-    if ($this->limit) {
+    if (!empty($this->limit)) {
       $result['limit'] = $this->limit;
     }
     return $result;
+  }
+
+  public function addCache(array $cache)
+  {
+    $this->cache = $cache;
+    return $this;
+  }
+
+
+  public function addOrder(array $order): RepositoryParameters
+  {
+    $this->order = $order;
+    return $this;
   }
 
   public function addSelect(array $select): RepositoryParameters
@@ -53,25 +67,16 @@ class RepositoryParameters
     return $this;
   }
 
-  public function addRefRuntime(Reference $runtime): RepositoryParameters
+  public function addReference($name, $referenceEntity, $referenceFilter, $parameters = array()): RepositoryParameters
   {
-    $this->runtime[] = $runtime;
+    $ref = Join::on($referenceFilter[0], $referenceFilter[1]);
+    $this->runtime[] = new Reference($name, $referenceEntity, $ref, $parameters);
     return $this;
   }
 
-  public function addRuntime($runtime)
+  public function addExpression($name, $expression, $buildFrom = null, $parameters = array()): RepositoryParameters
   {
-    if ($runtime instanceof ExpressionField) {
-      $this->addExpRuntime($runtime);
-    }
-    if ($runtime instanceof Reference) {
-      $this->addRefRuntime($runtime);
-    }
-  }
-
-  public function addExpRuntime(ExpressionField $runtime): RepositoryParameters
-  {
-    $this->runtime[] = $runtime;
+    $this->runtime[] = new ExpressionField($name, $expression, $buildFrom, $parameters);
     return $this;
   }
 }
