@@ -15,7 +15,7 @@ class ProductFactory
     foreach ($arProductFields as $field) {
 
       $fieldValue = $field ===  $product::PROPERTIES_FIELD ?
-        PropertiesCollectionFactory::fromArray($arProperties[$product::PROPERTIES_FIELD]) :
+        PropertiesCollectionFactory::from3DArray($arProperties[$product::PROPERTIES_FIELD]) :
         $arProperties[$field];
 
       $product->set($field, $fieldValue);

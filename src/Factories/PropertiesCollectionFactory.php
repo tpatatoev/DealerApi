@@ -6,14 +6,26 @@ use MTI\DealerApi\V2\Models\PropertyCollection;
 
 class PropertiesCollectionFactory
 {
-  public static function fromArray(array $arProperties)
+  public static function from3DArray(array $arProperties):PropertyCollection
   {
     $collection = [];
-    foreach ($arProperties as $property) {
-      foreach ($property as $propertyValue) {
-        $collection[] = PropertiesFactory::fromArray($propertyValue);
-      }
+    foreach ($arProperties as $entity) {
+      $collection = [...static::make($entity), ...$collection];
     }
     return new PropertyCollection(...$collection);
+  }
+
+  public static function fromArray(array $arProperties):PropertyCollection
+  {
+    return new PropertyCollection(...static::make($arProperties));
+  }
+
+  public static function make(array $arEntities)
+  {
+    $collection = [];
+    foreach ($arEntities as $entity) {
+      $collection[] = PropertiesFactory::fromArray($entity);
+    }
+    return $collection;
   }
 }

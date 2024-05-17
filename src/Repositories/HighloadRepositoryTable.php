@@ -8,7 +8,7 @@ use CModule;
 CModule::IncludeModule('highloadblock');
 
 
-class HighLoadRepository extends HighloadBlockTable
+class HighloadRepositoryTable extends HighloadBlockTable
 {
 
   protected static array $container = [];
@@ -28,7 +28,7 @@ class HighLoadRepository extends HighloadBlockTable
 
     $res = static::$container[$arParams["TABLE_NAME"]]::getList(
       array(
-        'select' => array('*'), 'order' => array('ID' => 'ASC'),
+        'select' => array("VALUE" => "UF_NAME", "DESCRIPTION" => "UF_FULL_DESCRIPTION", "VALUE_XML_ID" => "UF_XML_ID"), 'order' => array('ID' => 'ASC'),
         'filter' => array('=UF_XML_ID' => $arParams["VALUE"]),
         "cache" => ["ttl" => 3600]
       )

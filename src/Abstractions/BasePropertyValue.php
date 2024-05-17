@@ -28,15 +28,9 @@ abstract class BasePropertyValue extends BaseProperty
   protected $PROPERTY_USER_TYPE;
   protected $PROPERTY_TYPE;
   protected $PROPERTY_ENUM_VALUE;
-  protected $ID;
-  protected $IBLOCK_ELEMENT_ID;
-  protected $VALUE_TYPE;
-  protected $VALUE_ENUM;
+  protected $VALUE_XML_ID;
   protected $DESCRIPTION;
-  protected $PROPERTY_USER_TYPE_SETTINGS;
   protected $PROPERTY_USER_TYPE_SETTINGS_LIST;
-  protected $PROPERTY_FILE_SUBDIR;
-  protected $PROPERTY_FILE_FILE_NAME;
   protected $VALUE;
 
   public function set($name, $value): void
@@ -44,6 +38,7 @@ abstract class BasePropertyValue extends BaseProperty
     if ($name === static::PROPERTY_VALUE) {
       switch ($this->getType()) {
         case 'L':
+          $this->VALUE_XML_ID = $value;
           $value = $this->PROPERTY_ENUM_VALUE;
           break;
         case 'S:HTML':
@@ -60,5 +55,16 @@ abstract class BasePropertyValue extends BaseProperty
   public function getValue()
   {
     return $this->VALUE;
+  }
+
+  public function getXmlId()
+  {
+    return $this->VALUE_XML_ID;
+  }
+
+
+  public function getDescription()
+  {
+    return $this->DESCRIPTION;
   }
 }

@@ -10,13 +10,13 @@ use stdClass;
  */
 abstract class BaseProduct extends stdClass implements IBaseProduct
 {
-  protected $ID;
-  protected $IBLOCK_ID;
+  // protected $ID;
+  // protected $IBLOCK_ID;
   protected $XML_ID;
   protected $NAME;
-  protected $IBLOCK_SECTION_ID;
+  // protected $IBLOCK_SECTION_ID;
   protected $SECTION_XML_ID;
-  protected $DETAIL_PICTURE;
+  protected $DETAIL_PICTURE_FILE;
   protected $PREVIEW_TEXT;
   protected $DETAIL_TEXT;
   protected $CREATED_DATE;
@@ -26,10 +26,10 @@ abstract class BaseProduct extends stdClass implements IBaseProduct
   protected $LENGTH;
   protected $HEIGHT;
   protected BasePropertyCollection $PROPERTIES;
-  private const DETAIL_PICTURE = "DETAIL_PICTURE";
+  protected const DETAIL_PICTURE = "DETAIL_PICTURE_FILE";
   public const PROPERTIES_FIELD = "PROPERTIES";
-  private const DETAIL_TEXT_FIELD = "DETAIL_TEXT";
-  private const PREVIEW_TEXT_FIELD = "PREVIEW_TEXT";
+  protected const DETAIL_TEXT_FIELD = "DETAIL_TEXT";
+  protected const PREVIEW_TEXT_FIELD = "PREVIEW_TEXT";
 
   public function __set($name, $value)
   {

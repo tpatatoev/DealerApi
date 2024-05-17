@@ -69,7 +69,7 @@ class MainController
     $arProductXmlIds = array_keys($transformedList);
 
     $arSectionProperties = $this->repository->getSectionsArray($arProductXmlIds);
-    dump($arSectionProperties);
+    // dump($arSectionProperties);
     // dump($arSectionProperties);
 
     // if (empty($arSectionProperties['SECTIONS'])) {
@@ -81,11 +81,16 @@ class MainController
     $arCategories = BxCatalog::getCatalogTreeList($arSectionProperties['SECTIONS']);
 
 
+    dump($arSectionProperties["PROPERTY_LIST"]);
 
-    $arProducts = BxCatalog::getElements($arProductXmlIds, $arSectionProperties,  $arCategories);
+    $arProducts = $this->repository->getList($arProductXmlIds, $arSectionProperties);
+
+    
+    foreach ($arProducts as $arProduct) {
+      dump($arProduct);
+    }
 
     // $this->writer->bindProductList($this->request->getProducts());
-
     // return $this->writer->createFile($arProducts, $arProperties, $arCategories);
     return new DOMDocument();
   }

@@ -2,6 +2,8 @@
 
 namespace MTI\DealerApi\V2\Factories;
 
+use MTI\DealerApi\V2\Interfaces\IBaseEntity;
+use MTI\DealerApi\V2\Models\Property;
 use MTI\DealerApi\V2\Models\PropertyValue;
 
 /**
@@ -9,12 +11,20 @@ use MTI\DealerApi\V2\Models\PropertyValue;
  */
 class PropertiesFactory
 {
-  public static function fromArray(array $array): PropertyValue
+  public static function fromArray(array $arValues): IBaseEntity
   {
-    $property = new PropertyValue;
-    foreach ($property->getFields() as $key) {
-      $property->set($key, $array[$key]);
+    $property = array_key_exists("VALUE", $arValues) ? 
+    new PropertyValue : new Property;
+    return static::make($property, $arValues);
+  }
+
+
+  
+  public static function make(IBaseEntity $baseEntity, $arValues): IBaseEntity
+  {
+    foreach ($baseEntity->getFields() as $key) {
+      $baseEntity->set($key, $arValues[$key]);
     }
-    return $property;
+    return $baseEntity;
   }
 }
