@@ -28,6 +28,8 @@ abstract class BaseProduct extends stdClass implements IBaseProduct
   protected BasePropertyCollection $PROPERTIES;
   protected const DETAIL_PICTURE = "DETAIL_PICTURE_FILE";
   public const PROPERTIES_FIELD = "PROPERTIES";
+  protected const XML_ID_FIELD = "XML_ID";
+  protected const SECTION_XML_ID_FIELD = "SECTION_XML_ID";
   protected const DETAIL_TEXT_FIELD = "DETAIL_TEXT";
   protected const PREVIEW_TEXT_FIELD = "PREVIEW_TEXT";
 
@@ -54,5 +56,20 @@ abstract class BaseProduct extends stdClass implements IBaseProduct
   public function getFields(): array
   {
     return array_keys(get_class_vars(static::class));
+  }
+
+  protected function isNotProductField(string $field): bool
+  {
+    return !in_array($field,  [static::PROPERTIES_FIELD, static::XML_ID_FIELD, static::SECTION_XML_ID_FIELD]);
+  }
+
+  public function getProductFields(): array
+  {
+    return array_filter($this->getFields(), fn ($field) => $this->isNotProductField($field));
+  }
+
+  public function get($name)
+  {
+    return $this->$name;
   }
 }

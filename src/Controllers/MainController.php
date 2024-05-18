@@ -5,6 +5,7 @@ namespace MTI\DealerApi\V2\Controllers;
 use DOMDocument;
 use MTI\DealerApi\BxCatalog;
 use MTI\DealerApi\BxPropertyTable;
+use MTI\DealerApi\V2\Models\Product;
 use MTI\DealerApi\V2\Repositories\MainRepository;
 use MTI\DealerApi\V2\Views\XmlWriterV2;
 
@@ -47,8 +48,9 @@ class MainController
 
   public function getFileLocation()
   {
-    return $this->request->isRequestedPriceProducts() ?
-      str_replace("api_", "mti_api_", static::DISK_FILE_LOCATION) :
+    // return $this->request->isRequestedPriceProducts() ?
+    return true ?
+      str_replace("api_", "test_mti_api_", static::DISK_FILE_LOCATION) :
       static::DISK_FILE_LOCATION;
   }
 
@@ -68,7 +70,7 @@ class MainController
 
     $arProductXmlIds = array_keys($transformedList);
 
-    $arSectionProperties = $this->repository->getSectionsArray($arProductXmlIds);
+    $arProperties = $this->repository->getSectionsArray($arProductXmlIds);
     // dump($arSectionProperties);
     // dump($arSectionProperties);
 
@@ -78,21 +80,22 @@ class MainController
 
     // $arProperties = BxPropertyTable::getProperiesArray($arSectionProperties);
 
-    $arCategories = BxCatalog::getCatalogTreeList($arSectionProperties['SECTIONS']);
+    $arCategories = BxCatalog::getCatalogTreeList($arProperties['SECTIONS']);
 
 
-    dump($arSectionProperties["PROPERTY_LIST"]);
+    // dump($arProperties["PROPERTY_LIST"]);
 
-    $arProducts = $this->repository->getList($arProductXmlIds, $arSectionProperties);
+    $arProducts = $this->repository->getList($arProductXmlIds, $arProperties);
 
-    
-    foreach ($arProducts as $arProduct) {
-      dump($arProduct);
-    }
 
-    // $this->writer->bindProductList($this->request->getProducts());
-    // return $this->writer->createFile($arProducts, $arProperties, $arCategories);
-    return new DOMDocument();
+    // foreach ($arProducts as $arProduct) {
+    //   dump($arProduct);
+    // }
+
+    $this->writer->bindProductList($this->request->getProducts());
+    // dump($this->request->getProducts());
+    return $this->writer->createFile($arProducts, $arProperties["PROPERTY_LIST"], $arCategories);
+    // return new DOMDocument();
   }
 
 
@@ -121,7 +124,8 @@ class MainController
   private function loadEmpty()
   {
     $arEmpty = $this->emptyGenerator();
-    return $this->writer->createFile($arEmpty, [], [], []);
+    $arProperties = $this->repository->getPropertiesCollection([]);
+    return $this->writer->createFile($arEmpty, $arProperties, [], []);
   }
 
   public static function handleRequest()
@@ -129,12 +133,14 @@ class MainController
 
     // here goes logic defining what kind of request we have got
     $request = RequestController::getInstance();
-    $writer = new XmlWriterV2();
+    $model = new Product;
+    $writer = new XmlWriterV2($model);
     $repository = MainRepository::getInstance();
     $obContent = new static($request, $writer, $repository);
     /**test */
-    $obContent->loadArray();
-
+    $obXml =  $obContent->loadArray();
+    $file = $_SERVER["DOCUMENT_ROOT"] . $obContent->getFileLocation();
+    $obXml->save($file);
     // if ($request->isInvalid()) {
     //   $obXml = $obContent->loadEmpty();
     // } elseif ($_REQUEST['dateSince'] || $_REQUEST['latest'] === "Y") {

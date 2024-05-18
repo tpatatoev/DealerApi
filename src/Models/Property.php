@@ -18,6 +18,7 @@ use MTI\DealerApi\V2\Abstractions\BaseProperty;
 class Property extends BaseProperty
 {
   protected $SORT;
+  protected $SMART_FILTER;
   public function set($name, $value): void
   {
     $this->$name = $value;

@@ -6,9 +6,21 @@ use DOMDocument;
 use DOMElement;
 use Generator;
 use MTI\DealerApi\ProductsList;
+use MTI\DealerApi\V2\Models\Product;
+use MTI\DealerApi\V2\Models\Property;
+use MTI\DealerApi\V2\Models\PropertyCollection;
 
 /**
  * XmlWriter
+ *   
+ *
+ * @var int static  totalQuantity
+ * @var array arPropsParams
+ * @var array arProductFields
+ * @var array arCategoryParams
+ * @var  protected Product $model
+ * 
+ *  
  */
 class XmlWriterV2
 {
@@ -16,54 +28,73 @@ class XmlWriterV2
   public static $totalQuantity;
 
   protected array $productList;
-  /**
-   * arPropsParams
-   *
-   * @var array
-   */
+
   protected $arPropsParams = [
     'type' => "PROPERTY_TYPE",
-    'code' => "CODE",
-    'name' => "NAME",
+    'code' => "PROPERTY_CODE",
+    'name' => "PROPERTY_NAME",
     'in_filter' => "SMART_FILTER",
     'multiple' => "MULTIPLE",
     'sort' => "SORT",
   ];
 
+  protected $arPropsValuesParams = [
+    'type' => "PROPERTY_TYPE",
+    'code' => "PROPERTY_CODE",
+    'value' => "DESCRIPTION",
+    'id' => "VALUE_XML_ID",
+  ];
 
+  protected array $arProductFields;
 
-  /**
-   * arCategoryParams
-   *
-   * @var array
-   */
   protected $arCategoryParams = [
     'id' => "id",
     'parentID' => "parentID",
   ];
 
+  protected Product $model;
+
+
+  public function __construct(Product $model)
+  {
+    $this->model = $model;
+    $this->arProductFields = $this->model->getProductFields();
+  }
 
   /**
    * createParam
    *
-   * @param  mixed $xml
-   * @param  mixed $arParam
+   * @param  DOMDocument $xml
+   * @param  Property $arParam
    * @return DOMElement
    */
-  private function createParam(DOMDocument $xml, $arParam): DOMElement
+  private function createParam(DOMDocument $xml, Property $arParam): DOMElement
   {
     $domElement = $xml->createElement("param");
     foreach ($this->arPropsParams as $xmlName => $bxName) {
-      $attribute = $xml->createAttribute($xmlName);
-      $attribute->value = $arParam[$bxName];
+      $attribute = $this->createAttribute($xml, $xmlName,  $arParam->get($bxName));
       $domElement->appendChild($attribute);
     }
     return $domElement;
   }
 
+  private function createAttribute(DOMDocument $xml, $name, $value): \DOMAttr
+  {
+    $attribute = $xml->createAttribute($name);
+    if ($value)
+      $attribute->value = $value;
+    return $attribute;
+  }
+
+  /**
+   * function bindProductList
+   *
+   * @param  \MTI\DealerApi\ProductsList $list
+   * @return void
+   */
   public function bindProductList(ProductsList $list)
   {
-    $this->productList = $list->getList();
+    $this->productList = $list->getTransformedList();
   }
 
 
@@ -83,9 +114,6 @@ class XmlWriterV2
       $domElement->appendChild($attribute);
     }
     return $domElement;
-
-
-    return $xml;
   }
 
   /**
@@ -96,7 +124,7 @@ class XmlWriterV2
    * @param  mixed $categories
    * @return void
    */
-  private function createCateroriesList(DOMDocument $xml, array $arCategories, DOMElement $categories): void
+  private function createCategoriesList(DOMDocument $xml, array $arCategories, DOMElement $categories): void
   {
     foreach ($arCategories as $arCategory) {
       if (empty($arCategory)) continue;
@@ -108,16 +136,16 @@ class XmlWriterV2
   /**
    * createParamsList
    *
-   * @param  mixed $xml
-   * @param  mixed $arParamsList
-   * @param  mixed $properties
+   * @param  DOMDocument $xml
+   * @param  PropertyCollection $arParamsList
+   * @param  DOMElement $properties
    * @return void
    */
-  private function createParamsList(DOMDocument $xml, array $arParamsList, DOMElement $properties): void
+  private function createParamsList(DOMDocument $xml, PropertyCollection $arParamsList, DOMElement $properties): void
   {
-    foreach ($arParamsList as $arParam) {
-      if (empty($arParam)) continue;
-      $param = $this->createParam($xml, $arParam);
+    foreach ($arParamsList->all() as $paramModel) {
+      // if (empty($arParam)) continue;
+      $param = $this->createParam($xml, $paramModel);
       $properties->appendChild($param);
     }
   }
@@ -127,104 +155,58 @@ class XmlWriterV2
    * createProductsList
    *
    * @param  DOMDocument $xml
-   * @param  Generator $arProducts
+   * @param  Generator<\MTI\DealerApi\V2\Models\Product> $arProducts
    * @param  DOMElement $products
-   * @param  array $productList
    * @return int
    */
   private function createProductsList(DOMDocument $xml, Generator $arProducts, DOMElement $products): int
   {
     $i = 0;
     if (count($this->productList) === 0) return $i;
-    $arProductFields = array('NAME', 'CREATED_DATE', 'TIMESTAMP_X', 'PREVIEW_TEXT', "DETAIL_PICTURE", 'MORE_PHOTO', 'DETAIL_TEXT', "WEIGHT", "WIDTH", "LENGTH", "HEIGHT");
-    foreach ($arProducts as $element) {
-      if (empty($element)) continue;
-      foreach ($this->productList[$element["XML_ID"]] as $productXmdId) {
+
+    /**
+     * @var \MTI\DealerApi\V2\Models\Product $productModel
+     */
+    foreach ($arProducts as $productModel) {
+      $xmlId = $productModel->get("XML_ID");
+      $catId = $productModel->get("SECTION_XML_ID");
+      foreach ($this->productList[$xmlId] as $productXmdId) {
         $Element = $xml->createElement('product');
-        foreach ($element as $key => $val) {
-          if ($key == 'XML_ID') {
-            $code = $xml->createAttribute('id');
-            $code->value = $productXmdId;
-            $Element->appendChild($code);
+
+        foreach (["id" => $productXmdId, "cat_id" => $catId] as $attributeName => $attributeValue) {
+          $code = $this->createAttribute($xml, $attributeName, $attributeValue);
+          $Element->appendChild($code);
+        }
+
+        foreach ($this->arProductFields as $field) {
+          $param = $xml->createElement('param', htmlspecialchars($productModel->get($field)));
+          $paramCode = $xml->createAttribute('code');
+          $paramCode->value = strtolower($field);
+          $param->appendChild($paramCode);
+          $Element->appendChild($param);
+        }
+
+        foreach ($productModel->getProperties() as $obProperty) {
+          $code = $obProperty->get("PROPERTY_CODE");
+          $id = $obProperty->getXmlId();
+          $type = $obProperty->get("PROPERTY_TYPE");
+          $description = $obProperty->get("DESCRIPTION") ? $obProperty->get("DESCRIPTION") : null;
+
+          $paramAttributeSet = [
+            "code" => $code,
+            "id" => $id,
+            "type" => $type
+          ] + ($description ? [
+            "value" => $description
+          ] : []);
+
+          $param = $xml->createElement('param', $obProperty->getValue());
+
+          foreach ($paramAttributeSet as $attributeName => $attributeValue) {
+            $paramAttribute = $this->createAttribute($xml, $attributeName, $attributeValue);
+            $param->appendChild($paramAttribute);
           }
-          if (in_array($key, $arProductFields) && $val != '') {
-            $param = $xml->createElement('param', htmlspecialchars($val));
-            $paramCode = $xml->createAttribute('code');
-            $paramCode->value = strtolower($key);
-            $param->appendChild($paramCode);
-            $Element->appendChild($param);
-          }
-          if ($key == 'IBLOCK_SECTION_ID') {
-            $code = $xml->createAttribute('cat_id');
-            $code->value = $val;
-            $Element->appendChild($code);
-          }
-
-          if ($key == 'PROPERTIES' && is_array($val)) {
-            $arData = $val;
-
-            foreach ($arData as $arProp) {
-              if ($arProp["MULTIPLE"] != "Y") {
-                $param = $xml->createElement('param', htmlspecialchars($arProp["VALUE"]));
-
-                if ($arProp["DESCRIPTION"] != "") {
-                  $param = $xml->createElement('param', $arProp["DESCRIPTION"]);
-                  $paramDescription = $xml->createAttribute('value');
-                  $paramDescription->value = htmlspecialchars($arProp["VALUE"]);
-                }
-                $paramCode = $xml->createAttribute('code');
-                $paramCode->value = strtolower($arProp["CODE"]);
-                $paramXML_ID = $xml->createAttribute('id');
-                $paramXML_ID->value = $arProp["XML_ID"];
-                $paramType = $xml->createAttribute('type');
-                $paramType->value = $arProp["TYPE"];
-                if (!is_null($param)) {
-                  $param->appendChild($paramCode);
-                  $param->appendChild($paramXML_ID);
-                  $param->appendChild($paramType);
-                  if ($arProp["DESCRIPTION"] != "") {
-                    $param->appendChild($paramDescription);
-                  }
-                  $Element->appendChild($param);
-                }
-              } else {
-                $arMultipleValue = explode(ProductsList::DIVIDER, $arProp["VALUE"]);
-                $arMultipleXML_ID = explode(ProductsList::DIVIDER, $arProp["XML_ID"]);
-
-                if ($arProp["DESCRIPTION"] != "") {
-                  $arMultipleDescription = explode(ProductsList::DIVIDER, $arProp["DESCRIPTION"]);
-                }
-
-                $j = 0;
-                foreach ($arMultipleValue as $multipleValue) {
-                  $param = $xml->createElement('param', htmlspecialchars($multipleValue));
-                  $paramCode = $xml->createAttribute('code');
-                  $paramCode->value = strtolower($arProp["CODE"]);
-                  $paramXML_ID = $xml->createAttribute('id');
-                  $paramXML_ID->value = $arMultipleXML_ID[$j];
-
-                  if ($arProp["DESCRIPTION"] != "") {
-                    $param = $xml->createElement('param', $arMultipleDescription[$j]);
-                    $paramDescription = $xml->createAttribute('value');
-                    $paramDescription->value = htmlspecialchars($multipleValue);
-                  }
-
-                  $paramType = $xml->createAttribute('type');
-                  $paramType->value = $arProp["TYPE"];
-                  if (!is_null($param)) {
-                    $param->appendChild($paramCode);
-                    $param->appendChild($paramXML_ID);
-                    $param->appendChild($paramType);
-                    if ($arProp["DESCRIPTION"] != "") {
-                      $param->appendChild($paramDescription);
-                    }
-                    $Element->appendChild($param);
-                  }
-                  $j++;
-                }
-              }
-            }
-          }
+          $Element->appendChild($param);
         }
       }
       if ($Element)
@@ -237,13 +219,12 @@ class XmlWriterV2
   /**
    * createFile
    *
-   * @param  Generator $arProducts
-   * @param  array $productList
-   * @param  array $arParamsList
+   * @param  Generator<\MTI\DealerApi\V2\Models\Product> $arProducts
+   * @param  PropertyCollection $arParamsList
    * @param  array $arCategories
    * @return DOMDocument
    */
-  public function createFile(Generator $arProducts, array $arParamsList, array $arCategories): DOMDocument
+  public function createFile(Generator $arProducts, PropertyCollection $arParamsList, array $arCategories): DOMDocument
   {
     $xml = new DOMDocument("1.0", "UTF-8");
     $xml->formatOutput = true;
@@ -251,7 +232,7 @@ class XmlWriterV2
 
     $categories = $xml->createElement('categories');
 
-    $this->createCateroriesList($xml, $arCategories, $categories);
+    $this->createCategoriesList($xml, $arCategories, $categories);
 
     $properties = $xml->createElement("paramslist");
 
@@ -260,7 +241,6 @@ class XmlWriterV2
     $products = $xml->createElement('productslist');
 
     self::$totalQuantity = $this->createProductsList($xml, $arProducts, $products);
-
     $totalCount = $xml->createElement('products_count', self::$totalQuantity);
     $root->appendChild($totalCount);
     $root->appendChild($xml->createElement('memory_used', round(memory_get_usage(true) / 1024 / 1024, 2)));

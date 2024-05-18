@@ -18,6 +18,7 @@ class SectionPropertyRepositoryTable extends SectionPropertyTable
     $obSectionParams->addOrder(["SORT" => "ASC"]);
     $obSectionParams->addSelect([
       // "*",
+      "SMART_FILTER",
       'SECTION_ID',
       'PROPERTY_ID',
       "PROPERTY_NAME" => "PROPERTY.NAME",
@@ -46,8 +47,9 @@ class SectionPropertyRepositoryTable extends SectionPropertyTable
     while ($arProperty = $dbSectionProperties->fetch()) {
       $arProperty['SECTION_ID'] = (int) $arProperty['SECTION_ID'];
       $arProperty['PROPERTY_ID'] = (int) $arProperty['PROPERTY_ID'];
-      $arProperty['MULTIPLE'] = $arProperty['MULTIPLE'] ? "true" : "false";
-      $arProperty['SMART_FILTER'] = $arProperty['SMART_FILTER'] ? "true" : "false";
+      $arProperty['MULTIPLE'] = $arProperty['MULTIPLE'] === "Y" ? "true" : "false";
+      $arProperty['SMART_FILTER'] = $arProperty['SMART_FILTER'] === "Y" ? "true" : "false";
+      $arProperty["PROPERTY_CODE"] = ToLower($arProperty["PROPERTY_CODE"]);
       $arResult[0][$arProperty['PROPERTY_ID']] = $arProperty;
 
       if ($arProperty['SECTION_ID'] === 0) {

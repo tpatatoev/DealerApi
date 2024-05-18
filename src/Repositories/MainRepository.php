@@ -54,6 +54,10 @@ class MainRepository extends Singleton
     return HighloadRepositoryTable::class;
   }
 
+  public function getPropertiesCollection(array $array)
+  {
+    return PropertiesCollectionFactory::fromArray($array);
+  }
 
   public function getSectionsArray(array $arProductXmlIds): array
   {
@@ -75,7 +79,7 @@ class MainRepository extends Singleton
     }
 
     [$arResult["PROPERTY_LIST"], $arResult["SECTION_PROPERTIES"]] = ($this->getSectionPropertiesRepository())::getSectionProperties($arResult['SECTIONS']);
-    $arResult["PROPERTY_LIST"] = PropertiesCollectionFactory::fromArray($arResult["PROPERTY_LIST"]);
+    $arResult["PROPERTY_LIST"] = $this->getPropertiesCollection($arResult["PROPERTY_LIST"]);
     return $arResult;
   }
 
@@ -85,7 +89,7 @@ class MainRepository extends Singleton
    * getList
    *
    * @param  array $arProductXmlIds
-   * @return Generator
+   * @return Generator<\MTI\DealerApi\V2\Models\Product>
    */
   public function getList(array $arProductXmlIds, array $arSectionProperties): Generator
   {
@@ -170,10 +174,12 @@ class MainRepository extends Singleton
         $arProperty = array_merge($arProperty, $arValue);
       }
 
+      $arProperty['PROPERTY_CODE'] = ToLower($arProperty['PROPERTY_CODE']);
       $arResult[$arProperty["PROPERTY_ID"]][] = $arProperty;
     }
-
-    $arResult[6010] = $this->getPhotos($itemId);
+    $arPhotos = $this->getPhotos($itemId);
+    $morePhotosId = $arPhotos[0]["PROPERTY_ID"] ? $arPhotos[0]["PROPERTY_ID"] : 10000;
+    $arResult[$morePhotosId] = $arPhotos;
     return $arResult;
   }
 
@@ -197,6 +203,7 @@ class MainRepository extends Singleton
 
     $arResult = [];
     while ($arProperty = $dbProperty->Fetch()) {
+      $arProperty['PROPERTY_CODE'] = ToLower($arProperty['PROPERTY_CODE']);
       $arProperty["VALUE"] = $arProperty["FILE_VALUE"];
       $arResult[] = $arProperty;
     }

@@ -36,7 +36,16 @@ abstract class BasePropertyValue extends BaseProperty
   public function set($name, $value): void
   {
     if ($name === static::PROPERTY_VALUE) {
-      switch ($this->getType()) {
+      switch ($this->getXmlType()) {
+        case 'S:directory':
+          if ($this->DESCRIPTION) {
+            $DESCRIPTION = $value;
+            $value = $this->DESCRIPTION;
+            $this->DESCRIPTION = $DESCRIPTION;
+          } else {
+            $value = $value;
+          }
+          break;
         case 'L':
           $this->VALUE_XML_ID = $value;
           $value = $this->PROPERTY_ENUM_VALUE;

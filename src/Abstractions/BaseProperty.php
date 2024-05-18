@@ -24,7 +24,7 @@ abstract class BaseProperty extends BaseEntity implements ISectionProperty
   protected $MULTIPLE;
   protected $SECTION_ID;
 
-  public function getSectionId():int
+  public function getSectionId(): int
   {
     return $this->SECTION_ID;
   }
@@ -34,4 +34,10 @@ abstract class BaseProperty extends BaseEntity implements ISectionProperty
     return $this->PROPERTY_ID;
   }
 
+
+  public function get($fieldName)
+  {
+    return $fieldName === static::PROPERTY_TYPE ?
+      $this->getType() : $this->$fieldName;
+  }
 }

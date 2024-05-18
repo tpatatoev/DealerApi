@@ -9,4 +9,15 @@ use MTI\DealerApi\V2\Abstractions\BaseProduct;
  */
 class Product extends BaseProduct
 {
+
+
+    /**
+     * getProperties
+     *
+     * @return array<PropertyValue>
+     */
+    public function getProperties()
+    {
+        return $this->PROPERTIES->all();
+    }
 }
