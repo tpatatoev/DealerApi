@@ -3,8 +3,7 @@
 namespace MTI\DealerApi\V2\Controllers;
 
 use DOMDocument;
-use MTI\DealerApi\BxCatalog;
-use MTI\DealerApi\BxPropertyTable;
+use Generator;
 use MTI\DealerApi\V2\Models\Product;
 use MTI\DealerApi\V2\Repositories\MainRepository;
 use MTI\DealerApi\V2\Views\XmlWriterV2;
@@ -24,12 +23,14 @@ class MainController
   protected array $sortedProductsList;
   protected RequestController $request;
   protected MainRepository $repository;
+  protected XmlResponseController $response;
 
-  public function __construct(RequestController $request, XmlWriterV2 $writer, MainRepository $repository)
+  public function __construct(RequestController $request, XmlWriterV2 $writer, MainRepository $repository, XmlResponseController $response)
   {
     $this->request = $request;
     $this->writer = $writer;
     $this->repository = $repository;
+    $this->response = $response;
   }
 
   public function getTransport(): string
@@ -64,15 +65,12 @@ class MainController
 
   function loadArray(): DOMDocument
   {
-    // $this->productList = ProductsList::fromArray($arProductIds);
-
     $transformedList =  $this->request->getProducts()->getTransformedList();
 
     $arProductXmlIds = array_keys($transformedList);
 
     $arProperties = $this->repository->getSectionsArray($arProductXmlIds);
-    // dump($arSectionProperties);
-    // dump($arSectionProperties);
+
 
     // if (empty($arSectionProperties['SECTIONS'])) {
     //   return $this->loadEmpty();
@@ -80,7 +78,7 @@ class MainController
 
     // $arProperties = BxPropertyTable::getProperiesArray($arSectionProperties);
 
-    $arCategories = BxCatalog::getCatalogTreeList($arProperties['SECTIONS']);
+    $arCategories = $this->repository->getTreeList($arProperties['SECTIONS']);
 
 
     // dump($arProperties["PROPERTY_LIST"]);
@@ -93,7 +91,6 @@ class MainController
     // }
 
     $this->writer->bindProductList($this->request->getProducts());
-    // dump($this->request->getProducts());
     return $this->writer->createFile($arProducts, $arProperties["PROPERTY_LIST"], $arCategories);
     // return new DOMDocument();
   }
@@ -101,7 +98,7 @@ class MainController
 
   private function loadSection()
   {
-    $arProductXmlIds = BxCatalog::formatItemsBySection([], $_REQUEST['cat_id']);
+    $arProductXmlIds = $this->repository->getRequestedItemIds([], $this->request->getCatId());
     $this->request->resetProductList($arProductXmlIds);
     return count($arProductXmlIds) ?
       $this->loadArray() :  $this->loadEmpty();
@@ -110,13 +107,18 @@ class MainController
 
   private function loadByDate()
   {
-    $arProductXmlIds = BxCatalog::formatItemsBySection([], 0);
+    $arProductXmlIds = $this->repository->getRequestedItemIds([], 0, $this->request->getDateSince());
     $this->request->resetProductList($arProductXmlIds);
     return $this->loadArray();
   }
 
 
-  private function emptyGenerator()
+  /**
+   * emptyGenerator
+   *
+   * @return Generator
+   */
+  private function emptyGenerator(): Generator
   {
     yield [];
   }
@@ -130,25 +132,65 @@ class MainController
 
   public static function handleRequest()
   {
-
-    // here goes logic defining what kind of request we have got
     $request = RequestController::getInstance();
     $model = new Product;
     $writer = new XmlWriterV2($model);
     $repository = MainRepository::getInstance();
-    $obContent = new static($request, $writer, $repository);
-    /**test */
-    $obXml =  $obContent->loadArray();
-    $file = $_SERVER["DOCUMENT_ROOT"] . $obContent->getFileLocation();
-    $obXml->save($file);
-    // if ($request->isInvalid()) {
-    //   $obXml = $obContent->loadEmpty();
-    // } elseif ($_REQUEST['dateSince'] || $_REQUEST['latest'] === "Y") {
-    //   $obXml = $obContent->loadByDate();
-    // } else {
+    //TO DO: add functionality to create json responses
+    $response = XmlResponseController::getInstance();
+    $obContent = new static($request, $writer, $repository, $response);
+    $view = $obContent->getView();
+    $obContent->createResponse($view)
+      ->respond();
+  }
 
-    //   $arProducts = $obContent->request->getProducts();
-    //   $obXml = $_REQUEST['cat_id'] ? $obContent->loadSection() : $obContent->loadArray();
-    // }
+  /**
+   * createResponse
+   *
+   * @param  mixed $view
+   * @return self
+   */
+  public function createResponse($view): MainController
+  {
+    $this->response->setData($view, $this->getTotalQuantity());
+    return $this;
+  }
+
+  protected function respond()
+  {
+    switch ($this->getTransport()) {
+      case static::TRANSPORT_STREAM_FILE:
+        $this->response->streamFile();
+        break;
+      case static::TRANSPORT_STREAM_ZIP:
+        $this->response->streamZip();
+        break;
+      case static::TRANSPORT_STREAM:
+        $this->response->streamXml();
+        break;
+      case static::TRANSPORT_DISK_FILE:
+        $this->response->toDisk($this->getFileLocation())->send();
+        break;
+      default:
+        break;
+    }
+  }
+
+  /**
+   * getView
+   *
+   * @return DOMDocument
+   */
+  protected function getView(): DOMDocument
+  {
+    if ($this->request->isInvalid()) {
+      $obXml = $this->loadEmpty();
+    } elseif ($this->request->isRequestedByDate()) {
+      $obXml = $this->loadByDate();
+    } else {
+      $obXml = $this->request->isRequestedCategory() ? $this->loadSection() : $this->loadArray();
+    }
+
+    return $obXml;
   }
 }

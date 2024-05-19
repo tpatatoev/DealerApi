@@ -11,6 +11,7 @@ use Bitrix\Iblock\SectionTable;
 use Bitrix\Main\ORM\Fields\ExpressionField;
 use Bitrix\Main\ORM\Fields\Relations\Reference;
 use Bitrix\Main\ORM\Query\Join;
+use Bitrix\Main\Type\Date;
 use Generator;
 use MTI\Base\Singleton;
 use MTI\DealerApi\BxHighLoadTable;
@@ -23,6 +24,10 @@ class MainRepository extends Singleton
 {
 
   const IBLOCK_ID = 31;
+  const XML_ID_FIELD = "XML_ID";
+  const ID_FIELD = "ID";
+  const NAME_FIELD = "NAME";
+  const IBLOCK_SECTION_ID = "IBLOCK_SECTION_ID";
 
   protected function __construct()
   {
@@ -89,6 +94,7 @@ class MainRepository extends Singleton
    * getList
    *
    * @param  array $arProductXmlIds
+   * @param  array $arSectionProperties
    * @return Generator<\MTI\DealerApi\V2\Models\Product>
    */
   public function getList(array $arProductXmlIds, array $arSectionProperties): Generator
@@ -106,12 +112,12 @@ class MainRepository extends Singleton
     $filter = [
       "=WF_STATUS_ID" => 1,
       'ACTIVE' => 'Y',
-      "IBLOCK_SECTION_ID" => $arSectionProperties['SECTIONS'],
-      "XML_ID" => $arProductXmlIds
+      static::IBLOCK_SECTION_ID => $arSectionProperties['SECTIONS'],
+      static::XML_ID_FIELD => $arProductXmlIds
     ];
 
     if ($_REQUEST["cat_id"] && count($arProductXmlIds) === 1) {
-      unset($filter["XML_ID"]);
+      unset($filter[static::XML_ID_FIELD]);
     }
 
     $obParams->addFilter($filter);
@@ -119,18 +125,17 @@ class MainRepository extends Singleton
     $dbElements = ($this->getProductRepository())::getList($obParams->toArray());
     $currentSectionProperties = [];
     while ($arItem = $dbElements->fetch()) {
-
-      if (empty($currentSectionProperties[$arItem["IBLOCK_SECTION_ID"]])) {
-        $currentSectionProperties[$arItem["IBLOCK_SECTION_ID"]] =
-          array_keys($arSectionProperties["SECTION_PROPERTIES"][$arItem["IBLOCK_SECTION_ID"]]);
+      if (empty($currentSectionProperties[$arItem[static::IBLOCK_SECTION_ID]])) {
+        $currentSectionProperties[$arItem[static::IBLOCK_SECTION_ID]] =
+          array_keys($arSectionProperties["SECTION_PROPERTIES"][$arItem[static::IBLOCK_SECTION_ID]]);
       }
 
       $arItem['DETAIL_TEXT'] = str_replace(array("\r", "\n"), '<br/>', $arItem['DETAIL_TEXT']);
 
-      $arExistingValues = $this->getProperties($arItem["ID"], $currentSectionProperties[$arItem["IBLOCK_SECTION_ID"]]);
+      $arExistingValues = $this->getProperties($arItem["ID"], $currentSectionProperties[$arItem[static::IBLOCK_SECTION_ID]]);
       $arPropertySet = [];
 
-      foreach ($arSectionProperties["SECTION_PROPERTIES"][$arItem["IBLOCK_SECTION_ID"]] as $key => $arProperty) {
+      foreach ($arSectionProperties["SECTION_PROPERTIES"][$arItem[static::IBLOCK_SECTION_ID]] as $key => $arProperty) {
         $arProperty["VALUE"] = $arProperty["VALUE_XML_ID"] =  $arProperty["VALUE_ENUM"] = null;
         $arPropertySet[$key][] = $arProperty;
       }
@@ -138,11 +143,7 @@ class MainRepository extends Singleton
       $arItem["PROPERTIES"] = array_replace($arPropertySet, $arExistingValues);
 
       // dump($arItem);
-      $p = ProductFactory::fromArray($arItem);
-      // $p = [];
-      yield $p;
-      // echo "<pre>" . print_r($p, true) . "</pre>";
-
+      yield ProductFactory::fromArray($arItem);
     }
   }
 
@@ -210,6 +211,111 @@ class MainRepository extends Singleton
     return $arResult;
   }
 
+
+  /**
+   * formatItemsBySection
+   *
+   * @param  array $arProductXmlIds
+   * @param  null | string $sectionXmlId
+   * @param  null | string $dateSince
+   * @return array
+   */
+  function getRequestedItemIds(array $arProductXmlIds = [], $sectionXmlId = null, $dateSince = null): array
+  {
+
+    $filter = [
+      "ACTIVE" => "Y",
+      "=WF_STATUS_ID" => 1,
+    ];
+    if ($sectionXmlId) {
+      $filter[static::IBLOCK_SECTION_ID] = $this->getSection($sectionXmlId, static::XML_ID_FIELD)[static::ID_FIELD];
+    }
+
+    if (!empty($arProductXmlIds)) {
+      $filter[static::XML_ID_FIELD] = $arProductXmlIds;
+    }
+
+
+    $select = [static::XML_ID_FIELD, static::IBLOCK_SECTION_ID];
+
+    if (empty($arProductXmlIds) &&  $sectionXmlId === 0 && $dateSince) {
+      $select = array_merge($select, ['PROP_CODE' => 'PROPERTY.CODE', 'PROP_VALUE' => 'ELEMENT_PROPERTY.VALUE']);
+      $filter = array_merge($filter, ["PROP_CODE" => "CONTENT_TIMESTAMP_X", ">=PROP_VALUE" => $dateSince]);
+    }
+
+    $obParams = new RepositoryParameters;
+    $obParams->addSelect($select)
+      ->addReference('ELEMENT_PROPERTY', ElementPropertyTable::class, ['this.ID', 'ref.IBLOCK_ELEMENT_ID'])
+      ->addReference('PROPERTY', PropertyTable::class, ['this.ELEMENT_PROPERTY.IBLOCK_PROPERTY_ID', 'ref.ID'])
+      ->addFilter($filter);
+
+    $iterator = ($this->getProductRepository())::getList($obParams->toArray());
+    $arResult = [];
+    while ($arItem = $iterator->fetch()) {
+      $arResult[] = $arItem['XML_ID'];
+    }
+    return $arResult;
+  }
+
+  /**
+   * getSection
+   *
+   * @param  mixed $id
+   * @param  string $fieldName
+   * @return array $result
+   */
+  public function getSection($id, string $fieldName = 'ID'): array
+  {
+    $result = [];
+    if (!$id) {
+      return $result;
+    }
+
+    if (!in_array($fieldName, [static::XML_ID_FIELD, static::ID_FIELD, static::NAME_FIELD]))
+      $fieldName = static::XML_ID_FIELD;
+
+    $parameters = [
+      'select' => [static::ID_FIELD, static::XML_ID_FIELD, 'IBLOCK_ID', static::NAME_FIELD],
+      'filter' => ['IBLOCK_ID' => static::IBLOCK_ID, "ACTIVE" => "Y", $fieldName => $id],
+      'order' => ['ID' => 'ASC'],
+      "cache" => ["ttl" => 3600],
+    ];
+
+
+    $dbSections = SectionTable::getList($parameters);
+    if ($section = $dbSections->fetch()) {
+      $result = $section;
+    }
+    return $result;
+  }
+
+
+  /**
+   * getTreeList
+   *
+   * @param  array $sectionIds
+   * @return array
+   */
+  public function getTreeList(array $sectionIds = []): array
+  {
+    $arResult = [];
+    $filter = ['IBLOCK_ID' => static::IBLOCK_ID,  "ACTIVE" => "Y"];
+    if ($sectionIds)
+      $filter["ID"] = $sectionIds;
+
+    $obParams = new RepositoryParameters;
+    $obParams->addSelect([static::IBLOCK_SECTION_ID, static::XML_ID_FIELD, static::NAME_FIELD, static::ID_FIELD])
+      ->addFilter($filter);
+    $dbIterator = SectionTable::getList($obParams->toArray());
+
+    while ($section = $dbIterator->fetch()) {
+      $parentId = $section[static::IBLOCK_SECTION_ID] ?  $this->getSection($section[static::IBLOCK_SECTION_ID])[static::XML_ID_FIELD] : 0;
+      if ($sectionIds)
+        $arResult[$parentId] = array("name" => $this->getSection($section[static::IBLOCK_SECTION_ID])[static::NAME_FIELD], "id" => $parentId, 'parentID' => 0);
+      $arResult[$section[static::XML_ID_FIELD]] = array("name" => $section[static::NAME_FIELD], "id" => $section[static::XML_ID_FIELD], 'parentID' => $parentId);
+    }
+    return $arResult;
+  }
 
   private function newQuery()
   {

@@ -54,6 +54,7 @@ class XmlWriterV2
 
   protected Product $model;
 
+  protected DOMDocument $document;
 
   public function __construct(Product $model)
   {
@@ -68,19 +69,19 @@ class XmlWriterV2
    * @param  Property $arParam
    * @return DOMElement
    */
-  private function createParam(DOMDocument $xml, Property $arParam): DOMElement
+  private function createParam(Property $arParam): DOMElement
   {
-    $domElement = $xml->createElement("param");
+    $domElement = $this->document->createElement("param");
     foreach ($this->arPropsParams as $xmlName => $bxName) {
-      $attribute = $this->createAttribute($xml, $xmlName,  $arParam->get($bxName));
+      $attribute = $this->createAttribute($xmlName,  $arParam->get($bxName));
       $domElement->appendChild($attribute);
     }
     return $domElement;
   }
 
-  private function createAttribute(DOMDocument $xml, $name, $value): \DOMAttr
+  private function createAttribute($name, $value): \DOMAttr
   {
-    $attribute = $xml->createAttribute($name);
+    $attribute = $this->document->createAttribute($name);
     if ($value)
       $attribute->value = $value;
     return $attribute;
@@ -105,11 +106,11 @@ class XmlWriterV2
    * @param  mixed $arParam
    * @return DOMElement
    */
-  private function createCategory(DOMDocument $xml, $arParam): DOMElement
+  private function createCategory($arParam): DOMElement
   {
-    $domElement = $xml->createElement("category", $arParam["name"]);
+    $domElement = $this->document->createElement("category", $arParam["name"]);
     foreach ($this->arCategoryParams as $xmlName => $bxName) {
-      $attribute = $xml->createAttribute($xmlName);
+      $attribute = $this->document->createAttribute($xmlName);
       $attribute->value = $arParam[$bxName];
       $domElement->appendChild($attribute);
     }
@@ -124,11 +125,11 @@ class XmlWriterV2
    * @param  mixed $categories
    * @return void
    */
-  private function createCategoriesList(DOMDocument $xml, array $arCategories, DOMElement $categories): void
+  private function createCategoriesList(array $arCategories, DOMElement $categories): void
   {
     foreach ($arCategories as $arCategory) {
       if (empty($arCategory)) continue;
-      $category = $this->createCategory($xml, $arCategory);
+      $category = $this->createCategory($arCategory);
       $categories->appendChild($category);
     }
   }
@@ -141,13 +142,63 @@ class XmlWriterV2
    * @param  DOMElement $properties
    * @return void
    */
-  private function createParamsList(DOMDocument $xml, PropertyCollection $arParamsList, DOMElement $properties): void
+  private function createParamsList(PropertyCollection $arParamsList, DOMElement $properties): void
   {
     foreach ($arParamsList->all() as $paramModel) {
       // if (empty($arParam)) continue;
-      $param = $this->createParam($xml, $paramModel);
+      $param = $this->createParam($paramModel);
       $properties->appendChild($param);
     }
+  }
+
+
+
+  /**
+   * createProduct
+   *
+   * @param  mixed $productXmdId
+   * @param  \MTI\DealerApi\V2\Models\Product $productModel
+   * @return DOMElement
+   */
+  protected function createProduct($productXmdId, $productModel): DOMElement
+  {
+    $product = $this->document->createElement('product');
+
+    foreach (["id" => $productXmdId, "cat_id" => $productModel->get("SECTION_XML_ID")] as $attributeName => $attributeValue) {
+      $code = $this->createAttribute($attributeName, $attributeValue);
+      $product->appendChild($code);
+    }
+
+    foreach ($this->arProductFields as $field) {
+      $param = $this->document->createElement('param', htmlspecialchars($productModel->get($field)));
+      $code = $this->createAttribute("code", strtolower($field));
+      $param->appendChild($code);
+      $product->appendChild($param);
+    }
+
+    foreach ($productModel->getProperties() as $obProperty) {
+      $code = $obProperty->get("PROPERTY_CODE");
+      $id = $obProperty->getXmlId();
+      $type = $obProperty->get("PROPERTY_TYPE");
+      $description = $obProperty->get("DESCRIPTION") ?? $obProperty->get("DESCRIPTION");
+
+      $paramAttributeSet = [
+        "code" => $code,
+        "id" => $id,
+        "type" => $type
+      ] + ($description ? [
+        "value" => $description
+      ] : []);
+
+      $param = $this->document->createElement('param', $obProperty->getValue());
+
+      foreach ($paramAttributeSet as $attributeName => $attributeValue) {
+        $paramAttribute = $this->createAttribute($attributeName, $attributeValue);
+        $param->appendChild($paramAttribute);
+      }
+      $product->appendChild($param);
+    }
+    return $product;
   }
 
 
@@ -159,7 +210,7 @@ class XmlWriterV2
    * @param  DOMElement $products
    * @return int
    */
-  private function createProductsList(DOMDocument $xml, Generator $arProducts, DOMElement $products): int
+  private function createProductsList(Generator $arProducts, DOMElement $products): int
   {
     $i = 0;
     if (count($this->productList) === 0) return $i;
@@ -169,49 +220,13 @@ class XmlWriterV2
      */
     foreach ($arProducts as $productModel) {
       $xmlId = $productModel->get("XML_ID");
-      $catId = $productModel->get("SECTION_XML_ID");
       foreach ($this->productList[$xmlId] as $productXmdId) {
-        $Element = $xml->createElement('product');
-
-        foreach (["id" => $productXmdId, "cat_id" => $catId] as $attributeName => $attributeValue) {
-          $code = $this->createAttribute($xml, $attributeName, $attributeValue);
-          $Element->appendChild($code);
-        }
-
-        foreach ($this->arProductFields as $field) {
-          $param = $xml->createElement('param', htmlspecialchars($productModel->get($field)));
-          $paramCode = $xml->createAttribute('code');
-          $paramCode->value = strtolower($field);
-          $param->appendChild($paramCode);
-          $Element->appendChild($param);
-        }
-
-        foreach ($productModel->getProperties() as $obProperty) {
-          $code = $obProperty->get("PROPERTY_CODE");
-          $id = $obProperty->getXmlId();
-          $type = $obProperty->get("PROPERTY_TYPE");
-          $description = $obProperty->get("DESCRIPTION") ? $obProperty->get("DESCRIPTION") : null;
-
-          $paramAttributeSet = [
-            "code" => $code,
-            "id" => $id,
-            "type" => $type
-          ] + ($description ? [
-            "value" => $description
-          ] : []);
-
-          $param = $xml->createElement('param', $obProperty->getValue());
-
-          foreach ($paramAttributeSet as $attributeName => $attributeValue) {
-            $paramAttribute = $this->createAttribute($xml, $attributeName, $attributeValue);
-            $param->appendChild($paramAttribute);
-          }
-          $Element->appendChild($param);
+        $product = $this->createProduct($productXmdId, $productModel);
+        if ($product instanceof DOMElement) {
+          $products->appendChild($product);
+          $i++;
         }
       }
-      if ($Element)
-        $products->appendChild($Element);
-      $i++;
     }
     return $i;
   }
@@ -226,28 +241,28 @@ class XmlWriterV2
    */
   public function createFile(Generator $arProducts, PropertyCollection $arParamsList, array $arCategories): DOMDocument
   {
-    $xml = new DOMDocument("1.0", "UTF-8");
-    $xml->formatOutput = true;
-    $root = $xml->createElement('root');
+    $this->document = new DOMDocument("1.0", "UTF-8");
+    $this->document->formatOutput = true;
+    $root = $this->document->createElement('root');
 
-    $categories = $xml->createElement('categories');
+    $categories = $this->document->createElement('categories');
 
-    $this->createCategoriesList($xml, $arCategories, $categories);
+    $this->createCategoriesList($arCategories, $categories);
 
-    $properties = $xml->createElement("paramslist");
+    $properties = $this->document->createElement("paramslist");
 
-    $this->createParamsList($xml, $arParamsList, $properties);
+    $this->createParamsList($arParamsList, $properties);
 
-    $products = $xml->createElement('productslist');
+    $products = $this->document->createElement('productslist');
 
-    self::$totalQuantity = $this->createProductsList($xml, $arProducts, $products);
-    $totalCount = $xml->createElement('products_count', self::$totalQuantity);
+    self::$totalQuantity = $this->createProductsList($arProducts, $products);
+    $totalCount = $this->document->createElement('products_count', self::$totalQuantity);
     $root->appendChild($totalCount);
-    $root->appendChild($xml->createElement('memory_used', round(memory_get_usage(true) / 1024 / 1024, 2)));
+    $root->appendChild($this->document->createElement('memory_used', round(memory_get_usage(true) / 1024 / 1024, 2)));
     $root->appendChild($categories);
     $root->appendChild($properties);
     $root->appendChild($products);
-    $xml->appendChild($root);
-    return $xml;
+    $this->document->appendChild($root);
+    return $this->document;
   }
 }

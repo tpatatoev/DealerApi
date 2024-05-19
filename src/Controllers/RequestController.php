@@ -74,6 +74,17 @@ class RequestController extends Singleton
     return $_REQUEST["arProducts"] === 'latest';
   }
 
+
+  public function isRequestedByDate(): bool
+  {
+    return $this->dateSince <> "";
+  }
+
+  public function isRequestedCategory(): bool
+  {
+    return $this->catId <> 0;
+  }
+
   public function isRequestedFile()
   {
     return $_REQUEST["asFile"] === "Y";
