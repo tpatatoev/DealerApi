@@ -16,10 +16,10 @@ abstract class BaseProduct extends stdClass implements IBaseProduct
   protected $NAME;
   // protected $IBLOCK_SECTION_ID;
   protected $SECTION_XML_ID;
-  protected $DETAIL_PICTURE_FILE;
+  protected $DETAIL_PICTURE;
   protected $PREVIEW_TEXT;
   protected $DETAIL_TEXT;
-  protected $CREATED_DATE;
+  protected $DATE_CREATE;
   protected $TIMESTAMP_X;
   protected $WEIGHT;
   protected $WIDTH;

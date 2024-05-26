@@ -11,9 +11,10 @@ class RepositoryParameters
   protected array $select;
   protected array $filter;
   protected array $order = ['ID' => 'ASC'];
-  protected array $cache = ["ttl" => 3600];
-  protected int $limit;
-  protected array $runtime;
+  // protected array $cache = ["ttl" => 3600 * 6, "cache_joins" => true];
+  protected array $cache = [];
+  protected int $limit = 0;
+  protected array $runtime = [];
 
 
   public function toArray(): array
@@ -27,10 +28,10 @@ class RepositoryParameters
     if (count($this->runtime)) {
       $result['runtime'] = $this->runtime;
     }
-    if (count($this->cache)) {
+    if (count($this->cache) && empty($_REQUEST["cache"])) {
       $result['cache'] = $this->cache;
     }
-    if (!empty($this->limit)) {
+    if ($this->limit) {
       $result['limit'] = $this->limit;
     }
     return $result;

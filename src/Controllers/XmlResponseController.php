@@ -34,7 +34,8 @@ class XmlResponseController extends Singleton
 
   public function streamXml()
   {
-    header("content-type: application/xml; charset=UTF-8");
+    if ($_REQUEST["type"] <> 'html')
+      header("content-type: application/xml; charset=UTF-8");
     echo $this->response->saveXML(), "\n";
     return;
   }

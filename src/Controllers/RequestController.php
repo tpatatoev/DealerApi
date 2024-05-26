@@ -57,7 +57,9 @@ class RequestController extends Singleton
 
   protected function setDateSince(): string
   {
-    if (empty($_REQUEST['dateSince']) && empty($_REQUEST["latest"])) return "";
+    if (empty($_REQUEST['dateSince']) && empty($_REQUEST["latest"]) && $this->isRequestedDiscontinued() === false) return "";
+
+    if ($this->isRequestedDiscontinued()) return (new Date)->add("-1M")->format(self::DATE_FORMAT);
 
     if (time() < Date::createFromPhp(new \DateTime($_REQUEST["dateSince"]))->getTimestamp()) {
       $_REQUEST['dateSince'] = $value = (new Date)->format(self::DATE_FORMAT);
@@ -66,12 +68,29 @@ class RequestController extends Singleton
     } else {
       $_REQUEST['dateSince'] = $value = Date::createFromPhp(new \DateTime($_REQUEST["dateSince"]))->format(self::DATE_FORMAT);
     }
+
     return $value;
   }
 
-  public function isRequestedPriceProducts()
+  /**
+   * isRequestedPriceProducts
+   *
+   * @return bool
+   */
+  public function isRequestedPriceProducts(): bool
   {
     return $_REQUEST["arProducts"] === 'latest';
+  }
+
+
+  /**
+   * isRequestedDiscontinued
+   *
+   * @return bool
+   */
+  public function isRequestedDiscontinued(): bool
+  {
+    return $_REQUEST["arProducts"] === 'discontinued';
   }
 
 

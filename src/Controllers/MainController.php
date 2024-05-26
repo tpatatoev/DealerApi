@@ -49,9 +49,8 @@ class MainController
 
   public function getFileLocation()
   {
-    // return $this->request->isRequestedPriceProducts() ?
-    return true ?
-      str_replace("api_", "test_mti_api_", static::DISK_FILE_LOCATION) :
+    return $this->request->isRequestedPriceProducts() ?
+      str_replace("api_", "mti_api_", static::DISK_FILE_LOCATION) :
       static::DISK_FILE_LOCATION;
   }
 
@@ -63,53 +62,91 @@ class MainController
   }
 
 
+  /**
+   * loadArray
+   *
+   * @return DOMDocument
+   */
   function loadArray(): DOMDocument
   {
+
     $transformedList =  $this->request->getProducts()->getTransformedList();
 
     $arProductXmlIds = array_keys($transformedList);
 
-    $arProperties = $this->repository->getSectionsArray($arProductXmlIds);
+    $arProperties = $this->repository->getSectionsArray($arProductXmlIds, $this->request->getCatId());
 
-
-    // if (empty($arSectionProperties['SECTIONS'])) {
-    //   return $this->loadEmpty();
-    // }
-
-    // $arProperties = BxPropertyTable::getProperiesArray($arSectionProperties);
+    if (empty($arProperties['SECTIONS']) || empty($arProductXmlIds)) {
+      return $this->loadEmpty();
+    }
 
     $arCategories = $this->repository->getTreeList($arProperties['SECTIONS']);
 
-
-    // dump($arProperties["PROPERTY_LIST"]);
-
-    $arProducts = $this->repository->getList($arProductXmlIds, $arProperties);
-
-
-    // foreach ($arProducts as $arProduct) {
-    //   dump($arProduct);
-    // }
+    $arProducts = $this->repository->getList(
+      $this->request->isRequestedCategory() ? [$arProductXmlIds[0]] : $arProductXmlIds,
+      $arProperties
+    );
 
     $this->writer->bindProductList($this->request->getProducts());
-    return $this->writer->createFile($arProducts, $arProperties["PROPERTY_LIST"], $arCategories);
-    // return new DOMDocument();
+
+    $this->request->resetProductList($arProductXmlIds);
+
+    return $this->writer->createFile(
+      $arProducts,
+      $arProperties["PROPERTY_LIST"],
+      $this->request->isRequestedDiscontinued() ? [] : $arCategories
+    );
   }
 
 
+  /**
+   * loadSection
+   *
+   * @return DOMDocument
+   */
   private function loadSection()
   {
     $arProductXmlIds = $this->repository->getRequestedItemIds([], $this->request->getCatId());
     $this->request->resetProductList($arProductXmlIds);
-    return count($arProductXmlIds) ?
-      $this->loadArray() :  $this->loadEmpty();
+    return $this->controll($arProductXmlIds);
   }
 
-
+  /**
+   * loadByDate
+   *
+   * @return DOMDocument
+   */
   private function loadByDate()
   {
     $arProductXmlIds = $this->repository->getRequestedItemIds([], 0, $this->request->getDateSince());
     $this->request->resetProductList($arProductXmlIds);
-    return $this->loadArray();
+    return $this->controll($arProductXmlIds);
+  }
+
+
+  /**
+   * loadByProducts
+   *
+   * @return DOMDocument
+   */
+  private function loadByProducts()
+  {
+
+    $arProductXmlIds = $this->repository->getRequestedItemIds(array_keys($this->request->getProducts()->getTransformedList()));
+    return $this->controll($arProductXmlIds);
+  }
+
+
+  /**
+   * controll
+   *
+   * @param  array $arProductXmlIds
+   * @return DOMDocument
+   */
+  private function controll(array $arProductXmlIds)
+  {
+    return  count($arProductXmlIds) ?
+      $this->loadArray() :  $this->loadEmpty();
   }
 
 
@@ -185,10 +222,10 @@ class MainController
   {
     if ($this->request->isInvalid()) {
       $obXml = $this->loadEmpty();
-    } elseif ($this->request->isRequestedByDate()) {
+    } elseif ($this->request->isRequestedByDate() || $this->request->isRequestedDiscontinued()) {
       $obXml = $this->loadByDate();
     } else {
-      $obXml = $this->request->isRequestedCategory() ? $this->loadSection() : $this->loadArray();
+      $obXml = $this->request->isRequestedCategory() ? $this->loadSection() : $this->loadByProducts();
     }
 
     return $obXml;

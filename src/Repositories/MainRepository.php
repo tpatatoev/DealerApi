@@ -6,19 +6,14 @@ use Bitrix\Catalog\ProductTable;
 use Bitrix\Iblock\ElementPropertyTable;
 use Bitrix\Iblock\PropertyEnumerationTable;
 use Bitrix\Iblock\PropertyTable;
-use Bitrix\Iblock\SectionPropertyTable;
 use Bitrix\Iblock\SectionTable;
-use Bitrix\Main\ORM\Fields\ExpressionField;
-use Bitrix\Main\ORM\Fields\Relations\Reference;
-use Bitrix\Main\ORM\Query\Join;
-use Bitrix\Main\Type\Date;
 use Generator;
+use Bitrix\Iblock\ElementTable;
 use MTI\Base\Singleton;
-use MTI\DealerApi\BxHighLoadTable;
 use MTI\DealerApi\V2\Factories\ProductFactory;
 use MTI\DealerApi\V2\Factories\PropertiesCollectionFactory;
-use MTI\DealerApi\V2\Factories\PropertiesFactory;
 use MTI\ORM\FileTable;
+use Bitrix\Iblock\Elements\ElementDistriTable;
 
 class MainRepository extends Singleton
 {
@@ -36,7 +31,7 @@ class MainRepository extends Singleton
 
   public function getProductRepository()
   {
-    return ElementDistriTable::class;
+    return ElementTable::class;
   }
 
   public function getProductProperties()
@@ -64,14 +59,8 @@ class MainRepository extends Singleton
     return PropertiesCollectionFactory::fromArray($array);
   }
 
-  public function getSectionsArray(array $arProductXmlIds): array
+  public function getSectionsArray(array $arProductXmlIds, $sectionXmlId = null): array
   {
-    $obParams = new RepositoryParameters;
-    $obParams->addSelect(['SECTION_ID']);
-    $obParams->addFilter(["XML_ID" => $arProductXmlIds]);
-    $obParams->addExpression('SECTION_ID', 'DISTINCT %s', ['IBLOCK_SECTION_ID']);
-
-    $iterator = ($this->getProductRepository())::getList($obParams->toArray());
 
     $arResult = [
       "SECTIONS" => [],
@@ -79,8 +68,21 @@ class MainRepository extends Singleton
       "SECTION_PROPERTIES" => [],
     ];
 
-    while ($arItem = $iterator->fetch()) {
-      $arResult["SECTIONS"][] = $arItem['SECTION_ID'];
+    if ($sectionXmlId) {
+      $arResult["SECTIONS"][] = $this->getSection($sectionXmlId, static::XML_ID_FIELD)[static::ID_FIELD];
+    } else {
+
+      $obParams = new RepositoryParameters;
+      $obParams->addSelect(['SECTION_ID'])
+        ->addFilter(["XML_ID" => $arProductXmlIds, "IBLOCK_ID" => static::IBLOCK_ID])
+        ->addLimit(count($arProductXmlIds))
+        ->addExpression('SECTION_ID', 'DISTINCT %s', ['IBLOCK_SECTION_ID'])
+        ->addCache(["ttl" => 3600 * 24,]);
+
+      $iterator = ($this->getProductRepository())::getList($obParams->toArray());
+      while ($arItem = $iterator->fetch()) {
+        $arResult["SECTIONS"][] = $arItem['SECTION_ID'];
+      }
     }
 
     [$arResult["PROPERTY_LIST"], $arResult["SECTION_PROPERTIES"]] = ($this->getSectionPropertiesRepository())::getSectionProperties($arResult['SECTIONS']);
@@ -100,39 +102,51 @@ class MainRepository extends Singleton
   public function getList(array $arProductXmlIds, array $arSectionProperties): Generator
   {
     $obParams = new RepositoryParameters;
-    $obParams->addSelect([
-      "ID", "*", "DETAIL_PICTURE_FILE", "SECTION_XML_ID" => "IBLOCK_SECTION.XML_ID", "DETAIL_PICTURE_DIR" => "FILE.SUBDIR", "DETAIL_PICTURE_FILE_NAME" => "FILE.FILE_NAME",
-      "WIDTH" => "CATALOG.WIDTH", "LENGTH" => "CATALOG.LENGTH", "HEIGHT" => "CATALOG.HEIGHT", "WEIGHT" => "CATALOG.WEIGHT",
-    ]);
-
-    $obParams->addReference('FILE', FileTable::class, ['this.DETAIL_PICTURE', 'ref.ID']);
-    $obParams->addExpression('DETAIL_PICTURE_FILE', "CONCAT ('https://" . $_SERVER['SERVER_NAME'] . "/upload/', %s, '/', %s)", ['FILE.SUBDIR', "FILE.FILE_NAME"]);
-    $obParams->addReference('CATALOG', ProductTable::class, ['this.ID', 'ref.ID']);
+    $obParams->addReference('FILE', FileTable::class, ['this.DETAIL_PICTURE', 'ref.ID'])
+      ->addExpression('DETAIL_PICTURE_FILE', "CONCAT ('https://" . $_SERVER['SERVER_NAME'] . "/upload/', %s, '/', %s)", ['FILE.SUBDIR', "FILE.FILE_NAME"])
+      ->addReference('CATALOG', ProductTable::class, ['this.ID', 'ref.ID'])
+      ->addCache(["ttl" => 3600 * 2]);
 
     $filter = [
       "=WF_STATUS_ID" => 1,
       'ACTIVE' => 'Y',
+      "IBLOCK_ID" => static::IBLOCK_ID,
       static::IBLOCK_SECTION_ID => $arSectionProperties['SECTIONS'],
       static::XML_ID_FIELD => $arProductXmlIds
     ];
 
+    $select = [
+      "ID", "XML_ID", "NAME", "DETAIL_TEXT" => "DETAIL_TEXT", "PREVIEW_TEXT", "IBLOCK_SECTION_ID", "TIMESTAMP_X", "DATE_CREATE",
+      "DETAIL_PICTURE_FILE", "SECTION_XML_ID" => "IBLOCK_SECTION.XML_ID", "DETAIL_PICTURE_DIR" => "FILE.SUBDIR", "DETAIL_PICTURE_FILE_NAME" => "FILE.FILE_NAME",
+      "WIDTH" => "CATALOG.WIDTH", "LENGTH" => "CATALOG.LENGTH", "HEIGHT" => "CATALOG.HEIGHT", "WEIGHT" => "CATALOG.WEIGHT",
+    ];
+
     if ($_REQUEST["cat_id"] && count($arProductXmlIds) === 1) {
-      unset($filter[static::XML_ID_FIELD]);
+      unset($filter[static::XML_ID_FIELD], $select["DETAIL_TEXT"]);
     }
 
-    $obParams->addFilter($filter);
+
+
+    $obParams->addFilter($filter)
+      ->addSelect($select);
+
+
+    // file_put_contents(MTI_LS_FOLDER . "1testfile.txt", json_encode($obParams->toArray(), JSON_PRETTY_PRINT));
 
     $dbElements = ($this->getProductRepository())::getList($obParams->toArray());
+
     $currentSectionProperties = [];
+
     while ($arItem = $dbElements->fetch()) {
+
       if (empty($currentSectionProperties[$arItem[static::IBLOCK_SECTION_ID]])) {
         $currentSectionProperties[$arItem[static::IBLOCK_SECTION_ID]] =
           array_keys($arSectionProperties["SECTION_PROPERTIES"][$arItem[static::IBLOCK_SECTION_ID]]);
       }
 
       $arItem['DETAIL_TEXT'] = str_replace(array("\r", "\n"), '<br/>', $arItem['DETAIL_TEXT']);
+      $arItem['DETAIL_PICTURE'] = $arItem["DETAIL_PICTURE_FILE"];
 
-      $arExistingValues = $this->getProperties($arItem["ID"], $currentSectionProperties[$arItem[static::IBLOCK_SECTION_ID]]);
       $arPropertySet = [];
 
       foreach ($arSectionProperties["SECTION_PROPERTIES"][$arItem[static::IBLOCK_SECTION_ID]] as $key => $arProperty) {
@@ -140,30 +154,35 @@ class MainRepository extends Singleton
         $arPropertySet[$key][] = $arProperty;
       }
 
-      $arItem["PROPERTIES"] = array_replace($arPropertySet, $arExistingValues);
+      $arItem["PROPERTIES"] = array_replace(
+        $arPropertySet,
+        $this->getProperties($arItem["ID"], $currentSectionProperties[$arItem[static::IBLOCK_SECTION_ID]])
+      );
 
-      // dump($arItem);
       yield ProductFactory::fromArray($arItem);
     }
   }
+
+
+
 
   protected function getProperties($itemId, array $arPropertyIds)
   {
     $obParams = new RepositoryParameters;
     $obParams->addSelect([
       "VALUE_XML_ID" => "VALUE_ENUM", 'IBLOCK_PROPERTY_ID', "VALUE", 'PROPERTY_ID' => "IBLOCK_PROPERTY_ID", 'PROPERTY_NAME' => 'PROPERTY.NAME', 'PROPERTY_CODE' => 'PROPERTY.CODE',
-      'PROPERTY_TYPE' => 'PROPERTY.PROPERTY_TYPE', 'MULTIPLE' => 'PROPERTY.MULTIPLE', 'PROPERTY_TYPE' => 'PROPERTY.PROPERTY_TYPE',
+      'PROPERTY_TYPE' => 'PROPERTY.PROPERTY_TYPE', 'MULTIPLE' => 'PROPERTY.MULTIPLE',
       'PROPERTY_USER_TYPE' => 'PROPERTY.USER_TYPE', 'PROPERTY_USER_TYPE_SETTINGS' => 'PROPERTY.USER_TYPE_SETTINGS',
       "PROPERTY_USER_TYPE_SETTINGS_LIST" => "PROPERTY.USER_TYPE_SETTINGS_LIST", 'PROPERTY_ENUM_VALUE' => 'PROPERTY_ENUMERATION.VALUE'
     ])
       ->addReference('PROPERTY', $this->getPropertiesRepository(), ['this.IBLOCK_PROPERTY_ID', 'ref.ID'])
       ->addReference('PROPERTY_ENUMERATION', PropertyEnumerationTable::class, ['this.VALUE', 'ref.ID'])
-      ->addFilter(["IBLOCK_ELEMENT_ID" => $itemId, "!PROPERTY_CODE" => "MORE_PHOTO", "PROPERTY_ID" => $arPropertyIds])
-      ->addCache(["ttl" => 3600, "cache_joins" => true]);
+      ->addFilter(["IBLOCK_ELEMENT_ID" => $itemId, "!PROPERTY_CODE" => ["MORE_PHOTO", "file"], "PROPERTY_ID" => $arPropertyIds]);
+
 
     $dbProperties = ($this->getProductProperties())::getList($obParams->toArray());
 
-    while ($arProperty = $dbProperties->Fetch()) {
+    while ($arProperty = $dbProperties->fetch()) {
 
       if ($arProperty['PROPERTY_USER_TYPE'] === 'directory') {
 
@@ -175,12 +194,16 @@ class MainRepository extends Singleton
         $arProperty = array_merge($arProperty, $arValue);
       }
 
+      if (empty($arProperty)) continue;
       $arProperty['PROPERTY_CODE'] = ToLower($arProperty['PROPERTY_CODE']);
       $arResult[$arProperty["PROPERTY_ID"]][] = $arProperty;
     }
-    $arPhotos = $this->getPhotos($itemId);
-    $morePhotosId = $arPhotos[0]["PROPERTY_ID"] ? $arPhotos[0]["PROPERTY_ID"] : 10000;
-    $arResult[$morePhotosId] = $arPhotos;
+
+    $arFiles = $this->getPhotos($itemId);
+    foreach ($arFiles as $key => $arFile) {
+      $arResult[$key] = $arFile;
+    }
+
     return $arResult;
   }
 
@@ -190,15 +213,13 @@ class MainRepository extends Singleton
     $obParams = new RepositoryParameters;
     $obParams->addSelect([
       "IBLOCK_PROPERTY_ID", "FILE_VALUE", "VALUE_XML_ID" => "VALUE", 'PROPERTY_ID' => "PROPERTY.ID", 'PROPERTY_NAME' => 'PROPERTY.NAME', 'PROPERTY_CODE' => 'PROPERTY.CODE',
-      'PROPERTY_TYPE' => 'PROPERTY.PROPERTY_TYPE', 'MULTIPLE' => 'PROPERTY.MULTIPLE', 'PROPERTY_TYPE' => 'PROPERTY.PROPERTY_TYPE',
-      'PROPERTY_USER_TYPE' => 'PROPERTY.USER_TYPE',
-
+      'PROPERTY_TYPE' => 'PROPERTY.PROPERTY_TYPE', 'MULTIPLE' => 'PROPERTY.MULTIPLE', 'PROPERTY_USER_TYPE' => 'PROPERTY.USER_TYPE',
     ])
       ->addReference('FILE', FileTable::class, ['this.VALUE', 'ref.ID'])
       ->addReference('PROPERTY', PropertyTable::class, ['this.IBLOCK_PROPERTY_ID', 'ref.ID'])
       ->addExpression('FILE_VALUE', "CONCAT ('https://" . $_SERVER['SERVER_NAME'] . "/upload/', %s, '/', %s)", ['FILE.SUBDIR', "FILE.FILE_NAME"])
-      ->addFilter(["IBLOCK_ELEMENT_ID" => $itemId, "PROPERTY.CODE" => "MORE_PHOTO"])
-      ->addCache(["ttl" => 3600, "cache_joins" => true]);
+      ->addFilter(["IBLOCK_ELEMENT_ID" => $itemId, "PROPERTY.CODE" => ["MORE_PHOTO", "file"]]);
+
 
     $dbProperty = ($this->getProductProperties())::getList($obParams->toArray());
 
@@ -206,7 +227,7 @@ class MainRepository extends Singleton
     while ($arProperty = $dbProperty->Fetch()) {
       $arProperty['PROPERTY_CODE'] = ToLower($arProperty['PROPERTY_CODE']);
       $arProperty["VALUE"] = $arProperty["FILE_VALUE"];
-      $arResult[] = $arProperty;
+      $arResult[$arProperty["IBLOCK_PROPERTY_ID"]][] = $arProperty;
     }
     return $arResult;
   }
@@ -224,6 +245,7 @@ class MainRepository extends Singleton
   {
 
     $filter = [
+      "IBLOCK_ID" => static::IBLOCK_ID,
       "ACTIVE" => "Y",
       "=WF_STATUS_ID" => 1,
     ];
@@ -238,22 +260,28 @@ class MainRepository extends Singleton
 
     $select = [static::XML_ID_FIELD, static::IBLOCK_SECTION_ID];
 
+    $obParams = new RepositoryParameters;
+
+
     if (empty($arProductXmlIds) &&  $sectionXmlId === 0 && $dateSince) {
       $select = array_merge($select, ['PROP_CODE' => 'PROPERTY.CODE', 'PROP_VALUE' => 'ELEMENT_PROPERTY.VALUE']);
       $filter = array_merge($filter, ["PROP_CODE" => "CONTENT_TIMESTAMP_X", ">=PROP_VALUE" => $dateSince]);
+
+      $obParams->addReference('ELEMENT_PROPERTY', ElementPropertyTable::class, ['this.ID', 'ref.IBLOCK_ELEMENT_ID'])
+        ->addReference('PROPERTY', PropertyTable::class, ['this.ELEMENT_PROPERTY.IBLOCK_PROPERTY_ID', 'ref.ID']);
     }
 
-    $obParams = new RepositoryParameters;
     $obParams->addSelect($select)
-      ->addReference('ELEMENT_PROPERTY', ElementPropertyTable::class, ['this.ID', 'ref.IBLOCK_ELEMENT_ID'])
-      ->addReference('PROPERTY', PropertyTable::class, ['this.ELEMENT_PROPERTY.IBLOCK_PROPERTY_ID', 'ref.ID'])
+      ->addCache(["ttl" => 3600 * 24])
       ->addFilter($filter);
+
 
     $iterator = ($this->getProductRepository())::getList($obParams->toArray());
     $arResult = [];
     while ($arItem = $iterator->fetch()) {
       $arResult[] = $arItem['XML_ID'];
     }
+
     return $arResult;
   }
 
@@ -278,9 +306,8 @@ class MainRepository extends Singleton
       'select' => [static::ID_FIELD, static::XML_ID_FIELD, 'IBLOCK_ID', static::NAME_FIELD],
       'filter' => ['IBLOCK_ID' => static::IBLOCK_ID, "ACTIVE" => "Y", $fieldName => $id],
       'order' => ['ID' => 'ASC'],
-      "cache" => ["ttl" => 3600],
+      "cache" => ["ttl" => 3600 * 24],
     ];
-
 
     $dbSections = SectionTable::getList($parameters);
     if ($section = $dbSections->fetch()) {
@@ -305,7 +332,8 @@ class MainRepository extends Singleton
 
     $obParams = new RepositoryParameters;
     $obParams->addSelect([static::IBLOCK_SECTION_ID, static::XML_ID_FIELD, static::NAME_FIELD, static::ID_FIELD])
-      ->addFilter($filter);
+      ->addFilter($filter)
+      ->addCache(["ttl" => 3600 * 12]);
     $dbIterator = SectionTable::getList($obParams->toArray());
 
     while ($section = $dbIterator->fetch()) {
@@ -315,14 +343,5 @@ class MainRepository extends Singleton
       $arResult[$section[static::XML_ID_FIELD]] = array("name" => $section[static::NAME_FIELD], "id" => $section[static::XML_ID_FIELD], 'parentID' => $parentId);
     }
     return $arResult;
-  }
-
-  private function newQuery()
-  {
-    /**@disregard */
-    $q = new \Bitrix\Main\Entity\Query(ElementDistriTable::getEntity());
-    $q->setSelect(array('ISBN', 'TITLE', 'PUBLISH_DATE'));
-    $q->setFilter(array('=ID' => 1));
-    $result = $q->exec();
   }
 }

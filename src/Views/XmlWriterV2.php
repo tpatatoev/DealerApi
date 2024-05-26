@@ -6,6 +6,7 @@ use DOMDocument;
 use DOMElement;
 use Generator;
 use MTI\DealerApi\ProductsList;
+use MTI\DealerApi\V2\Factories\ProductFactory;
 use MTI\DealerApi\V2\Models\Product;
 use MTI\DealerApi\V2\Models\Property;
 use MTI\DealerApi\V2\Models\PropertyCollection;
@@ -27,7 +28,7 @@ class XmlWriterV2
 
   public static $totalQuantity;
 
-  protected array $productList;
+  protected array $productList = [];
 
   protected $arPropsParams = [
     'type' => "PROPERTY_TYPE",
@@ -177,6 +178,10 @@ class XmlWriterV2
     }
 
     foreach ($productModel->getProperties() as $obProperty) {
+
+      if (!$obProperty instanceof \MTI\DealerApi\V2\Models\PropertyValue) {
+        continue;
+      }
       $code = $obProperty->get("PROPERTY_CODE");
       $id = $obProperty->getXmlId();
       $type = $obProperty->get("PROPERTY_TYPE");
@@ -245,7 +250,7 @@ class XmlWriterV2
     $this->document->formatOutput = true;
     $root = $this->document->createElement('root');
 
-    $categories = $this->document->createElement('categories');
+    $categories = $this->document->createElement('categorieslist');
 
     $this->createCategoriesList($arCategories, $categories);
 

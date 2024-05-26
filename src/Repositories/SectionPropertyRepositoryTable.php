@@ -34,7 +34,8 @@ class SectionPropertyRepositoryTable extends SectionPropertyTable
     $obSectionParams->addReference('PROPERTY', MainRepository::getInstance()->getPropertiesRepository(), ['this.PROPERTY_ID', 'ref.ID']);
 
     $filter = ["PROPERTY_IBLOCK_ID" => MainRepository::IBLOCK_ID, "SECTION_ID" => [0, ...$sectionIds], "ACTIVE" => "Y"];
-    $obSectionParams->addFilter($filter);
+    $obSectionParams->addFilter($filter)
+      ->addCache(["ttl" => 3600 * 6]);
 
     /**@disregard */
     $dbSectionProperties = static::getList($obSectionParams->toArray());
